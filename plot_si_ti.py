@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import os
+import datetime
 from scipy.stats import gaussian_kde
 def calculate_si(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -22,7 +23,12 @@ def process_video(video_path):
     cap = cv2.VideoCapture(video_path)
     si_values = []
     ti_values = []
-
+    frames = cap.get(cv2.CAP_PROP_FRAME_COUNT) 
+    fps = cap.get(cv2.CAP_PROP_FPS) 
+  
+    # calculate duration of the video 
+    seconds = round(frames / fps) 
+    video_time = datetime.timedelta(seconds=seconds) 
     ret, prev_frame = cap.read()
     if not ret:
         print("Failed to read the video")
@@ -41,9 +47,9 @@ def process_video(video_path):
             ti_values.append(ti)
 
         prev_frame = frame
-
+    # get the video duration in seconds
     cap.release()
-    return si_values, ti_values
+    return si_values, ti_values, video_time
 
 def plot_si_ti(si_values, ti_values,video_name):
     plt.figure(figsize=(10, 5))
@@ -94,5 +100,6 @@ if __name__ == '__main__':
             save_path = os.path.join(store_figures_path, video_name)
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
-            si_values, ti_values = process_video(video_path)
+            si_values, ti_values,duration = process_video(video_path)
+            print(f"Video: {video_name} Duration: {duration} seconds Average SI: {np.mean(si_values)} TI: {np.mean(ti_values)}")
             plot_si_ti(si_values, ti_values,video_name)

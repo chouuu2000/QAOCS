@@ -340,8 +340,11 @@ class Environment:
             csv_file_save_path = 'Videos_result/' + self.video.video_name().split('.mp4')[0] \
                 + 'eposide_'+str(self.eposide) +'simulation.csv'
             if self.test:
-                csv_file_save_path = 'Test_result/' + self.video.video_name().split('.mp4')[0] \
-                + self.cooked_file_names +'_test_simulation.csv'
+                vdir = 'Test_result/'+self.video.video_name().split('.mp4')[0]
+                pmkdir(vdir)
+                # csv_file_save_path = 'Test_result/' + self.video.video_name().split('.mp4')[0] \
+                # + self.cooked_file_names.replace('.txt','.csv')
+                csv_file_save_path = vdir + '/'+self.cooked_file_names.replace('.txt','.csv')
             self.eposide += 1
             data_frame = pd.DataFrame(self.data)
             data_frame.to_csv(csv_file_save_path, index=False)
