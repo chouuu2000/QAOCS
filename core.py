@@ -1,7 +1,8 @@
 import numpy as np
 import os
 from ffmpeg_quality_metrics import FfmpegQualityMetrics, VmafOptions
-import abr as ABR
+#import abr as ABR
+import rba as RBA
 import pandas as pd
 # For video features
 import cv2
@@ -176,11 +177,34 @@ class Environment:
         exe_time = end_time_ - start_time_
         print(f'Video multi-res processing execuation time: {exe_time:.2f}s')
         # ABR to select which resoltion and corresponding video size
-        abr = ABR.Abr()
-        quality_level = abr.abr(self, bitrates)
+        # abr = ABR.Abr()
+        # quality_level = abr.abr(self, bitrates)
+        
+        # rate based abr
+        rba = RBA.RateBasedABR()
+        quality_level = rba.abr(self)
 
         # Get the selected video segment and its size in bytes
-        b = sizes[quality_level]
+        #b = sizes[quality_level]
+        
+        # debug
+        try:
+            # Debug: Print the current state of sizes and quality_level
+            print(f"DEBUG: sizes array length = {len(sizes)}, selected quality_level = {quality_level}")
+            print(f"DEBUG: sizes array content = {sizes}")
+            print(f"DEBUG: bitrates array length = {len(bitrates)}")
+            print(f"DEBUG: bitrates array content = {bitrates}")
+
+            # 取得對應解析度的 chunk 大小
+            b = sizes[quality_level]
+        except IndexError as e:
+            print("ERROR: Index out of range in get_video_chunk!")
+            print(f"DEBUG: sizes array length = {len(sizes)}, but selected quality_level = {quality_level}")
+            print(f"DEBUG: bitrates array length = {len(bitrates)}")
+            print(f"DEBUG: bitrates array content = {bitrates}")
+            print(f"DEBUG: sizes array content = {sizes}")
+            raise e  # 讓錯誤繼續拋出，方便追蹤
+        
         video_rescale_quality = rescaled_videos[quality_level]
         self.video_size.append(b)
         self.service_time.append(B)  # 服务时间/ms
@@ -413,7 +437,9 @@ class Environment:
         metrics = ffqm.calculate(
             ["vmaf"],
             VmafOptions(
-                model_path='./vmaf/model/vmaf_float_v0.6.1.json'
+                model_path='./vmaf/model/vmaf_float_v0.6.1.json',
+                n_threads=16,
+                #n_subsample=5
             ),
         )
         vmaf_sum = 0.
@@ -553,7 +579,7 @@ class Environment:
     def process_video(self,video_path):
         """Process a video to extract and average SI, TI, and GLCM features."""
         frames = self.extract_frames(video_path)
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
             frame_features = list(executor.map(self.process_frame_features, frames))
 
         si_values, glcm_dicts = zip(*frame_features)

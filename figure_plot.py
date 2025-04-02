@@ -6,11 +6,11 @@ import pandas as pd
 # Load the provided CSV files
 file_paths = [
     'BBB_360p24_performance_comparison.csv',
-    'LOL_3D_performance_comparison.csv',
-    'sport_highlight_performance_comparison.csv',
-    'underwater_performance_comparison.csv',
-    'video_game_performance_comparison.csv',
-    'sport_long_take_performance_comparison.csv'
+    # 'LOL_3D_performance_comparison.csv',
+    # 'sport_highlight_performance_comparison.csv',
+    # 'underwater_performance_comparison.csv',
+    # 'video_game_performance_comparison.csv',
+    # 'sport_long_take_performance_comparison.csv'
 ]
 
 dataframes = [pd.read_csv(file) for file in file_paths]
@@ -45,7 +45,7 @@ combined_df['Video Category'] = combined_df['File'].str.extract(r'([A-Za-z]+)').
 fig, axes = plt.subplots(2, 2, figsize=(18, 15))
 metrics_to_boxplot = [
     ('Average VMAF Score', 'Score'),
-    ('Stall Ration(%)', 'Ratio'),
+    ('Stall Ratio(%)', 'Ratio'),
     ('Switch Ratio(%)', 'Ratio'),
     ('Average Bitrate(bps)', 'bps')
 ]
@@ -72,7 +72,7 @@ plt.savefig('box_plots.png')
 fig, axes = plt.subplots(1, 2, figsize=(18, 7))
 metrics_to_cdf = [
     ('Average VMAF Score', 'Score'),
-    ('Stall Ration(%)', '%')
+    ('Stall Ratio(%)', '%')
 ]
 
 def plot_cdf(data, metric, ax, label):
@@ -154,20 +154,31 @@ plt.show()
 plt.savefig('radar_chart.png')
 
 # Detailed Analysis Plots similar to reference figure
-categories = combined_df['Video Category'].unique()
-stall_ratio = combined_df.groupby('Video Category')['Stall Ratio(%)'].mean().to_dict()
-vmaf_scores = combined_df.groupby('Video Category')['Average VMAF Score'].mean().to_dict()
-stall_ratio_errors = combined_df.groupby('Video Category')['Stall Ratio(%)'].std().to_dict()
-vmaf_errors = combined_df.groupby('Video Category')['Average VMAF Score'].std().to_dict()
-vmaf_vs_vmaf_change = combined_df.groupby('Video Category')['VMAF Change'].mean().to_dict()
-vmaf_vs_vmaf_change_err = combined_df.groupby('Video Category')['VMAF Change'].std().to_dict()
-qoe_dnn_vs_buffer = combined_df.groupby('Video Category')['QoE'].mean().to_dict()
-qoe_dnn_vs_buffer_err = combined_df.groupby('Video Category')['QoE'].std().to_dict()
-buffer_sizes = combined_df.groupby('Video Category')['Average Buffer State(s)'].mean().to_dict()
-qoe_data = {category: combined_df[combined_df['Video Category'] == category]['QoE'].values for category in categories}
+# categories = combined_df['Video Category'].unique()
+# stall_ratio = combined_df.groupby('Video Category')['Stall Ratio(%)'].mean().to_dict()
+# vmaf_scores = combined_df.groupby('Video Category')['Average VMAF Score'].mean().to_dict()
+# stall_ratio_errors = combined_df.groupby('Video Category')['Stall Ratio(%)'].std().to_dict()
+# vmaf_errors = combined_df.groupby('Video Category')['Average VMAF Score'].std().to_dict()
+# vmaf_vs_vmaf_change = combined_df.groupby('Video Category')['VMAF Change'].mean().to_dict()
+# vmaf_vs_vmaf_change_err = combined_df.groupby('Video Category')['VMAF Change'].std().to_dict()
+# qoe_vs_buffer = combined_df.groupby('Video Category')['QoE'].mean().to_dict()
+# qoe_vs_buffer_err = combined_df.groupby('Video Category')['QoE'].std().to_dict()
+# buffer_sizes = combined_df.groupby('Video Category')['Average Buffer State(s)'].mean().to_dict()
+# qoe_data = {category: combined_df[combined_df['Video Category'] == category]['QoE'].values for category in categories}
+stall_ratio = combined_df.groupby('Method')['Stall Ratio(%)'].mean().to_dict()
+vmaf_scores = combined_df.groupby('Method')['Average VMAF Score'].mean().to_dict()
+stall_ratio_errors = combined_df.groupby('Method')['Stall Ratio(%)'].std().to_dict()
+vmaf_errors = combined_df.groupby('Method')['Average VMAF Score'].std().to_dict()
+vmaf_vs_vmaf_change = combined_df.groupby('Method')['VMAF Change'].mean().to_dict()
+vmaf_vs_vmaf_change_err = combined_df.groupby('Method')['VMAF Change'].std().to_dict()
+qoe_vs_buffer = combined_df.groupby('Method')['QoE'].mean().to_dict()
+qoe_vs_buffer_err = combined_df.groupby('Method')['QoE'].std().to_dict()
+buffer_sizes = combined_df.groupby('Method')['Average Buffer State(s)'].mean().to_dict()
+qoe_data = {method: combined_df[combined_df['Method'] == method]['QoE'].values for method in methods}
 
 fig, axs = plt.subplots(2, 2, figsize=(12, 8))
-markers = ['o', 's', 'D', '^', 'v', '>', '<', 'p']
+#markers = ['o', 's', 'D', '^', 'v', '>', '<', 'p']
+markers = ['o', 's']
 
 # Plot (a) VMAF vs. Stall Ratio
 for name, marker in zip(stall_ratio.keys(), markers):
@@ -186,8 +197,8 @@ axs[0, 0].invert_xaxis()
 
 # Plot (b) VMAF vs. VMAF Change
 for name, marker in zip(vmaf_vs_vmaf_change.keys(), markers):
-    x = combined_df[combined_df['Video Category'] == name]['VMAF Change']
-    y = combined_df[combined_df['Video Category'] == name]['Average VMAF Score']
+    x = combined_df[combined_df['Method'] == name]['VMAF Change']
+    y = combined_df[combined_df['Method'] == name]['Average VMAF Score']
     x_err = vmaf_vs_vmaf_change_err[name]
     y_err = vmaf_errors[name]
     axs[0,1].errorbar(x.mean(), y.mean(), xerr=x_err, yerr=y_err, label=name, marker=marker, capsize=5)
@@ -197,16 +208,16 @@ axs[0, 1].set_title('(b) VMAF vs. VMAF Change')
 axs[0, 1].legend()
 
 # Plot (c) QoE_DNN vs. Buffer
-for name, marker in zip(qoe_dnn_vs_buffer.keys(), markers):
+for name, marker in zip(qoe_vs_buffer.keys(), markers):
     x = buffer_sizes[name]
-    y = qoe_dnn_vs_buffer[name]
+    y = qoe_vs_buffer[name]
     x_err = combined_df[combined_df['Video Category'] == name]['Average Buffer State(s)'].std()
-    y_err = qoe_dnn_vs_buffer_err[name]
+    y_err = qoe_vs_buffer_err[name]
     axs[1,0].errorbar(x, y, xerr=x_err, yerr=y_err, label=name, marker=marker, capsize=5)
 
 axs[1, 0].set_xlabel('Buffer (s)')
 axs[1, 0].set_ylabel('QoE')
-axs[1, 0].set_title('(c) QoE_DNN vs. Buffer')
+axs[1, 0].set_title('(c) QoE vs. Buffer')
 axs[1, 0].legend()
 
 # Plot (d) CDF of QoE
@@ -221,7 +232,7 @@ for (category, vals), ls in zip(qoe_data.items(), linestyles):
 
 axs[1, 1].set_xlabel('QoE')
 axs[1, 1].set_ylabel('CDF')
-axs[1, 1].set_title('(d) CDF of QoE_DNN')
+axs[1, 1].set_title('(d) CDF of QoE')
 axs[1, 1].legend()
 
 # Adjust spacing between subplots
