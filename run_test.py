@@ -4,12 +4,12 @@ import shutil
 
 # 視頻列表
 video_list = [
-    "bigbuckbunny360p24",
-    "Tears_of_Steel_360p24",
+    #"bigbuckbunny360p24",
+    #"Tears_of_Steel_360p24",
     "LOL_3D",
     "sport_highlight",
-    "underwater",
-    "sport_long_take",
+    #"underwater",
+    #"sport_long_take",
     "video_game"
 ]
 

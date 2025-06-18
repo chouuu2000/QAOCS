@@ -5,12 +5,12 @@ import pandas as pd
 
 # Load the provided CSV files
 file_paths = [
-    #'BBB_360p24_performance_comparison.csv',
-     'LOL_3D_performance_comparison.csv',
-     'sport_highlight_performance_comparison.csv',
-    # 'underwater_performance_comparison.csv',
-     'video_game_performance_comparison.csv',
-    # 'sport_long_take_performance_comparison.csv'
+    './thesis_csv_result/BBB_360p24_performance_comparison.csv',
+    './thesis_csv_result/LOL_3D_performance_comparison.csv',
+    './thesis_csv_result/sport_highlight_performance_comparison.csv',
+    './thesis_csv_result/underwater_performance_comparison.csv',
+    './thesis_csv_result/video_game_performance_comparison.csv',
+    './thesis_csv_result/sport_long_take_performance_comparison.csv'
 ]
 
 dataframes = [pd.read_csv(file) for file in file_paths]
@@ -25,15 +25,15 @@ def correct_categorize_trace(file_name):
         return 'Slow'
     elif 'lab' in file_name or 'hsr' in file_name:
         return 'Medium'
-    elif 'ghent' in file_name or 'lumos5g' in file_name:
+    elif 'ghent' in file_name:
         return 'Fast'
-    #return 'Unknown'
+    return 'Unknown'
 
 combined_df['Network Type'] = combined_df['File'].apply(correct_categorize_trace)
 
 # Calculate VMAF Change and QoE for each entry
 combined_df['VMAF Change'] = combined_df['Average VMAF Smoothness']
-combined_df['QoE'] = 0.5*combined_df['Average VMAF Score'] - (combined_df['Stall Time(s)']* 0.2) - (combined_df['Switch Ratio(%)']*20 )
+combined_df['QoE'] = combined_df['Average VMAF Score'] - (combined_df['Stall Time(s)']* 0.1) - (combined_df['Switch Ratio(%)'] * 100)
 
 # Aggregate data by video category for plotting
 video_categories = combined_df['File'].str.extract(r'([A-Za-z]+)').squeeze().unique()
@@ -42,8 +42,7 @@ print("Video ->>",video_categories)
 combined_df['Video Category'] = combined_df['File'].str.extract(r'([A-Za-z]+)').squeeze()
 
 # Box Plots for key metrics across different network types and methods
-#fig, axes = plt.subplots(2, 2, figsize=(18, 15))
-fig, axes = plt.subplots(4, 1, figsize=(10, 20))
+fig, axes = plt.subplots(2, 2, figsize=(18, 15))
 metrics_to_boxplot = [
     ('Average VMAF Score', 'Score'),
     ('Stall Ratio(%)', 'Ratio'),
@@ -51,28 +50,12 @@ metrics_to_boxplot = [
     ('Average Bitrate(bps)', 'bps')
 ]
 
-#for i, (metric, unit) in enumerate(metrics_to_boxplot):
-#    row, col = divmod(i, 2)
-#    sns.boxplot(data=combined_df, x='Method', y=metric, hue='Network Type', ax=axes[row, col])
-#    axes[row, col].set_title(f'{metric} by Method and Network Type')
-#    axes[row, col].set_xlabel('')
-#    axes[row, col].set_ylabel(unit)
 for i, (metric, unit) in enumerate(metrics_to_boxplot):
-    ax = axes[i]
-    #sns.boxplot(data=combined_df, x='Method', y=metric, hue='Network Type', ax=ax)
-    sns.boxplot(
-    data=combined_df,
-    x='Method',
-    y=metric,
-    hue='Network Type',
-    hue_order=['Slow', 'Medium', 'Fast'],  
-    order=['QAOCS-RBA', 'QAOCS-MPC', 'QAOCS-BOLA', 'QAOCS-BBA','QAOCS-PENSIEVE', 'Segue', 'GOP-4', 'Constant-4'],
-    ax=ax
-    )
-    ax.set_title(f'{metric} by Method and Network Type')
-    ax.set_xlabel('')
-    ax.set_ylabel(unit)
-
+    row, col = divmod(i, 2)
+    sns.boxplot(data=combined_df, x='Method', y=metric, hue='Network Type', ax=axes[row, col])
+    axes[row, col].set_title(f'{metric} by Method and Network Type')
+    axes[row, col].set_xlabel('')
+    axes[row, col].set_ylabel(unit)
 # for i, (metric, unit) in enumerate(metrics_to_boxplot):
 #     row, col = divmod(i, 2)
 #     grouped_data = [combined_df[combined_df['Network Type'] == network_type][metric] for network_type in combined_df['Network Type'].unique()]
@@ -81,26 +64,10 @@ for i, (metric, unit) in enumerate(metrics_to_boxplot):
 #     axes[row, col].set_title(f'{metric} by Network Type')
 #     axes[row, col].set_xlabel('Network Type')
 #     axes[row, col].set_ylabel(unit)
-for ax in axes:
-    handles, labels = ax.get_legend_handles_labels()
-    if handles:
-        break
 plt.tight_layout()
-#plt.legend(title='Network Type', bbox_to_anchor=(1.05, 1), loc='upper left')
-fig.legend(handles, labels, title='Network Type', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.legend(title='Network Type', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.show()
-plt.savefig('box_plots.png')
-# for csv analysis
-summary_df = combined_df.groupby(['Method', 'Network Type'])[
-    ['Average VMAF Score', 'Stall Ratio(%)', 'Switch Ratio(%)', 'Average Bitrate(bps)']
-].agg(['mean', 'std']).reset_index()
-summary_df.to_csv('box_plot_summary_stats.csv', index=False)
-
-print('CSV file saved as box_plot_data.csv')
-
-#debug
-print('box done')
-
+plt.savefig('./thesis_csv_result/box_plots.png')
 # CDF plots for key metrics
 fig, axes = plt.subplots(1, 2, figsize=(18, 7))
 metrics_to_cdf = [
@@ -126,7 +93,7 @@ for i, (metric, unit) in enumerate(metrics_to_cdf):
 
 plt.tight_layout()
 plt.show()
-plt.savefig('cdf_plots.png')
+plt.savefig('./thesis_csv_result/cdf_plots.png')
 # Scatter Plot for Average Bitrate vs Average VMAF Score
 plt.figure(figsize=(12, 8))
 sns.scatterplot(data=combined_df, x='Average Bitrate(bps)', y='Average VMAF Score', hue='Method', style='Network Type')
@@ -136,9 +103,6 @@ plt.ylabel('Average VMAF Score')
 plt.legend(title='Method and Network Type', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
 plt.show()
-
-#debug
-print('cdf done')
 
 # Heatmap for performance metrics
 heatmap_data = combined_df.groupby(['Network Type', 'Method']).agg(
@@ -157,10 +121,7 @@ plt.title('Performance Metrics Heatmap by Method and Network Type')
 plt.xlabel('Method and Network Type')
 plt.ylabel('Performance Metrics')
 plt.show()
-plt.savefig('heatmap.png')
-
-#debug
-print('heatmap done')
+plt.savefig('./thesis_csv_result/heatmap.png')
 
 # Radar Chart for overall performance comparison
 from math import pi
@@ -190,37 +151,23 @@ ax.yaxis.set_visible(False)
 plt.title('Comparison of Methods on Multiple Metrics', size=15, color='black', y=1.1)
 plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1.1))
 plt.show()
-plt.savefig('radar_chart.png')
-
-#debug
-print('radar done')
+plt.savefig('./thesis_csv_result/radar_chart.png')
 
 # Detailed Analysis Plots similar to reference figure
-# categories = combined_df['Video Category'].unique()
-# stall_ratio = combined_df.groupby('Video Category')['Stall Ratio(%)'].mean().to_dict()
-# vmaf_scores = combined_df.groupby('Video Category')['Average VMAF Score'].mean().to_dict()
-# stall_ratio_errors = combined_df.groupby('Video Category')['Stall Ratio(%)'].std().to_dict()
-# vmaf_errors = combined_df.groupby('Video Category')['Average VMAF Score'].std().to_dict()
-# vmaf_vs_vmaf_change = combined_df.groupby('Video Category')['VMAF Change'].mean().to_dict()
-# vmaf_vs_vmaf_change_err = combined_df.groupby('Video Category')['VMAF Change'].std().to_dict()
-# qoe_vs_buffer = combined_df.groupby('Video Category')['QoE'].mean().to_dict()
-# qoe_vs_buffer_err = combined_df.groupby('Video Category')['QoE'].std().to_dict()
-# buffer_sizes = combined_df.groupby('Video Category')['Average Buffer State(s)'].mean().to_dict()
-# qoe_data = {category: combined_df[combined_df['Video Category'] == category]['QoE'].values for category in categories}
+categories = combined_df['Method'].unique()
 stall_ratio = combined_df.groupby('Method')['Stall Ratio(%)'].mean().to_dict()
 vmaf_scores = combined_df.groupby('Method')['Average VMAF Score'].mean().to_dict()
 stall_ratio_errors = combined_df.groupby('Method')['Stall Ratio(%)'].std().to_dict()
 vmaf_errors = combined_df.groupby('Method')['Average VMAF Score'].std().to_dict()
 vmaf_vs_vmaf_change = combined_df.groupby('Method')['VMAF Change'].mean().to_dict()
 vmaf_vs_vmaf_change_err = combined_df.groupby('Method')['VMAF Change'].std().to_dict()
-qoe_vs_buffer = combined_df.groupby('Method')['QoE'].mean().to_dict()
-qoe_vs_buffer_err = combined_df.groupby('Method')['QoE'].std().to_dict()
+qoe_dnn_vs_buffer = combined_df.groupby('Method')['QoE'].mean().to_dict()
+qoe_dnn_vs_buffer_err = combined_df.groupby('Method')['QoE'].std().to_dict()
 buffer_sizes = combined_df.groupby('Method')['Average Buffer State(s)'].mean().to_dict()
-qoe_data = {method: combined_df[combined_df['Method'] == method]['QoE'].values for method in methods}
+qoe_data = {category: combined_df[combined_df['Method'] == category]['QoE'].values for category in categories}
 
 fig, axs = plt.subplots(2, 2, figsize=(12, 8))
 markers = ['o', 's', 'D', '^', 'v', '>', '<', 'p']
-#markers = ['o', 's', 'D', '^', 'v', '>', '<']
 
 # Plot (a) VMAF vs. Stall Ratio
 for name, marker in zip(stall_ratio.keys(), markers):
@@ -236,7 +183,6 @@ axs[0, 0].set_title('(a) VMAF vs. Stall Ratio')
 axs[0, 0].legend()
 axs[0, 0].grid(True)
 axs[0, 0].invert_xaxis()
-print('a done')
 
 # Plot (b) VMAF vs. VMAF Change
 for name, marker in zip(vmaf_vs_vmaf_change.keys(), markers):
@@ -249,20 +195,20 @@ axs[0, 1].set_xlabel('Quality Smoothness (VMAF Change)')
 axs[0, 1].set_ylabel('Video Quality (VMAF)')
 axs[0, 1].set_title('(b) VMAF vs. VMAF Change')
 axs[0, 1].legend()
-print('b done')
+
 # Plot (c) QoE_DNN vs. Buffer
-for name, marker in zip(qoe_vs_buffer.keys(), markers):
+for name, marker in zip(qoe_dnn_vs_buffer.keys(), markers):
     x = buffer_sizes[name]
-    y = qoe_vs_buffer[name]
+    y = qoe_dnn_vs_buffer[name]
     x_err = combined_df[combined_df['Method'] == name]['Average Buffer State(s)'].std()
-    y_err = qoe_vs_buffer_err[name]
+    y_err = qoe_dnn_vs_buffer_err[name]
     axs[1,0].errorbar(x, y, xerr=x_err, yerr=y_err, label=name, marker=marker, capsize=5)
 
 axs[1, 0].set_xlabel('Buffer (s)')
 axs[1, 0].set_ylabel('QoE')
-axs[1, 0].set_title('(c) QoE vs. Buffer')
+axs[1, 0].set_title('(c) QoE_DNN vs. Buffer')
 axs[1, 0].legend()
-print('c done')
+
 # Plot (d) CDF of QoE
 def plot_cdf(data, ax, label, linestyle):
     sorted_data = np.sort(data)
@@ -270,20 +216,16 @@ def plot_cdf(data, ax, label, linestyle):
     ax.plot(sorted_data, yvals, label=label, linestyle=linestyle)
 
 linestyles = ['--', '-', ':', '-.', '--', '-']
-#for (category, vals), ls in zip(qoe_data.items(), linestyles):
 for (category, vals), ls in zip(qoe_data.items(), linestyles):
     plot_cdf(vals, axs[1,1], category, ls)
 
 axs[1, 1].set_xlabel('QoE')
 axs[1, 1].set_ylabel('CDF')
-axs[1, 1].set_title('(d) CDF of QoE')
+axs[1, 1].set_title('(d) CDF of QoE_DNN')
 axs[1, 1].legend()
-print('d done')
+
 # Adjust spacing between subplots
 plt.tight_layout()
 plt.show()
 # Save the figure
-plt.savefig('detailed_analysis_plots.png')
-
-#debug
-print('detailed done')
+plt.savefig('./thesis_csv_result/detailed_analysis_plots.png')

@@ -17,21 +17,9 @@ def read_and_preprocess_qaocs_csv(file_path):
 def read_and_preprocess_other_csv(file_path):
     try:
         df = pd.read_csv(file_path)
-        #避免overflow
-        # df['DURATION'] = df['DURATION'].astype(float).round(6)
-        # df['BITRATE'] = df['BITRATE'].astype(float).round(6)
-        # df['REBUF'] = df['REBUF'].astype(float).round(6)
-        # df['BUFFER_STATE'] = df['BUFFER_STATE'].astype(float).round(6)
-        # df['DELAY'] = df['DELAY'].astype(float).round(6)
-        # df['REWARD'] = df['REWARD'].astype(float).round(6)
-        # df['VMAF'] = df['VMAF'].astype(float).round(6)
-
         df['DURATION'] *= 1000  # 將秒轉換為毫秒
         df['BUFFER_STATE'] *= 1000  # 將秒轉換為毫秒
         df['REBUF'] *= 1000  # 將秒轉換為毫秒
-        # df['DURATION'] /= 1000  # 將秒轉換為毫秒
-        # df['BUFFER_STATE'] /= 1000  # 將秒轉換為毫秒
-        # df['REBUF'] /= 1000  # 將秒轉換為毫秒
         # VMAF is normalize by Duration/4 we need to convert it to the original scale
         df['VMAF'] = df['VMAF']*4 / (df['DURATION']/1000)
         return df
@@ -99,8 +87,9 @@ def process_video(video_name, methods):
                 file_path = os.path.join(path, file)
                 # if method == 'QAOCS':
                 #     df = read_and_preprocess_qaocs_csv(file_path)
-                if method == 'QAOCS_rba':
-                     df = read_and_preprocess_qaocs_csv(file_path)
+                qaocs_methods = ['QAOCS-BBA', 'QAOCS-RBA', 'QAOCS-BOLA', 'QAOCS-MPC', 'QAOCS-PENSIEVE']
+                if method in qaocs_methods:
+                    df = read_and_preprocess_qaocs_csv(file_path)
                 else:
                     df = read_and_preprocess_other_csv(file_path)
                 
@@ -122,13 +111,11 @@ def process_video(video_name, methods):
 
 if __name__ == '__main__':
     #video_list = ['BBB_360p24', 'LOL_3D', 'sport_highlight', 'sport_long_take', 'TOS_360p24', 'video_game', 'underwater']
-    video_list = ['BBB_360p24']
-    #video_list = ['LOL_3D']
+    video_list = ['LOL_3D', 'sport_highlight', 'video_game']
     
     for video_name in video_list:
         methods = {
          #   'QAOCS': f'./Training_output/QAOCS/{video_name}/',
-            'QAOCS_rba': f'./Training_output/QAOCS/rba/{video_name}/',
             #'Segue': f'./Training_output/segue_wide_eye/{video_name}/',
          #   'Segue': f'./Training_output/segue_GOP-4/{video_name}/',
             # 'GOP-5': f'./Training_output/segue_GOP-5/{video_name}/',
@@ -139,6 +126,15 @@ if __name__ == '__main__':
             #'Constant-4': f'./Training_output/segue_constant_4/{video_name}/',
          #   'Constant-4': f'./Training_output/segue_wide_eye/{video_name}/',
             # 'Constant-3': f'./Training_output/segue_constant_3/{video_name}/'
+        #for abr test
+            'QAOCS-RBA': f'./Training_output_abr/rba/{video_name}/',
+            'QAOCS-MPC': f'./Training_output_abr/mpc/{video_name}/',
+            'QAOCS-BOLA': f'./Training_output_abr/bola/{video_name}/',
+            'QAOCS-BBA': f'./Training_output_abr/bba/{video_name}/',
+            'QAOCS-PENSIEVE': f'./Training_output_abr/pensieve/{video_name}/',
+            'Segue': f'./Training_output_abr/segue_GOP-4/{video_name}/',
+            'Constant-4': f'./Training_output_abr/segue_wide_eye/{video_name}/',
+            'GOP-4': f'./Training_output_abr/segue_constant_4/{video_name}/'
         }
         
         process_video(video_name, methods)

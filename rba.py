@@ -5,10 +5,11 @@ MILLISECONDS_IN_SECOND = 1000.0
 RESOLUTION_LIST = [(640, 360), (854, 480), (1280, 720), (1920, 1080)]
 
 class RateBasedABR:
-    def __init__(self):
+    def __init__(self, bitrates):
         self.logger = logging.getLogger("RateBasedABR")
         self.logger.setLevel(logging.ERROR)
         self.past_bandwidths = []  # 用於存儲歷史頻寬
+        self.bitrates = bitrates
 
     def estimate_bandwidth(self, simstate):
         """根據最近的下載數據估算可用頻寬"""
@@ -26,8 +27,13 @@ class RateBasedABR:
             self.past_bandwidths.pop(0)
 
         # 計算移動平均頻寬 (MBps)
-        avg_bandwidth = np.mean(self.past_bandwidths)
-        return avg_bandwidth
+        #avg_bandwidth = np.mean(self.past_bandwidths)
+         # 加權平均（最近資料權重高）
+        weights = np.arange(1, len(self.past_bandwidths) + 1)  # 例如 [1, 2, 3, 4, 5]
+        weights = weights / weights.sum()  # 正規化
+        weighted_avg_bandwidth = np.sum(np.array(self.past_bandwidths) * weights)
+
+        return weighted_avg_bandwidth
 
     def select_quality(self, simstate):
         """根據估算的頻寬選擇適當的影片品質 (0,1,2,3)"""
@@ -39,7 +45,8 @@ class RateBasedABR:
         estimated_bandwidth_kbps = estimated_bandwidth * 1000
 
         # 獲取當前的碼率對應表
-        bitrates = simstate.data["BITRATE"]
+        #bitrates = simstate.data["BITRATE"]
+        bitrates = self.bitrates
         # if len(bitrates) < 4:
         #     return 0  # 確保碼率數據完整
 
@@ -53,7 +60,7 @@ class RateBasedABR:
 
         # 確保 selected_quality 不超過 bitrates 或 RESOLUTION_LIST
         #selected_quality = min(selected_quality, len(bitrates) - 1, len(RESOLUTION_LIST) - 1)
-        selected_quality = min(selected_quality, 3)
+        #selected_quality = min(selected_quality, 3)
 
         return selected_quality  # 返回對應的品質等級 (0,1,2,3)
 

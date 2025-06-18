@@ -12,6 +12,10 @@ import matplotlib.pyplot as plt
 import PIL.Image as Image
 import time
 import multiprocessing
+import bola as Bola
+import mpc1 as Mpc
+import pensieve as pensieve
+#import pensieve_ppo as pensieve_ppo
 S_INFO = 15
 S_LEN = 10  # take how many frames in the past
 A_DIM = 2
@@ -103,8 +107,13 @@ class Environment:
         "REBUF"	:   [],
         "BUFFER_STATE"	:   [],
         "DELAY"	:   [],
-        "REWARD": []
+        "REWARD": [],
+        "BITRATE_LIST": []
         }
+
+        # pensieve agent
+        self.pensieve_agent = pensieve.Pensieve(self)
+
     def reset(self):
             # reset the environment
             self.buffer_size = 0
@@ -141,7 +150,8 @@ class Environment:
             "REBUF"	:   [],
             "BUFFER_STATE"	:   [],
             "DELAY"	:   [],
-            "REWARD": []
+            "REWARD": [],
+            "BITRATE_LIST": []
             }
     def get_video_chunk(self, B, CRF):
         Videos_dir = 'Videos_result'
@@ -172,7 +182,7 @@ class Environment:
         # crop the video to different resolution
         ## return the video size and the video object list order by resolution low to high
         start_time_ = time.time()
-        bitrates,sizes, rescaled_videos = self.calculate_bits_multi(video_chunk, CRF, self.video_chunk_counter,video_dir = Video_dir)
+        bitrates, sizes, rescaled_videos = self.calculate_bits_multi(video_chunk, CRF, self.video_chunk_counter,video_dir = Video_dir)
         end_time_ = time.time()
         exe_time = end_time_ - start_time_
         print(f'Video multi-res processing execuation time: {exe_time:.2f}s')
@@ -181,12 +191,31 @@ class Environment:
         # quality_level = abr.abr(self, bitrates)
         
         # rate based abr
-        rba = RBA.RateBasedABR()
-        quality_level = rba.abr(self)
+        #rba = RBA.RateBasedABR(bitrates)
+        #quality_level = rba.abr(self)
 
         # Get the selected video segment and its size in bytes
         #b = sizes[quality_level]
+
+        #bola
+        #bola = Bola.Bola(B)
+        #quality_level = bola.abr(self, bitrates, sizes)
+
+        #mpcs
+        #mpc = Mpc.MPC(bitrates, B)
+        #quality_level = mpc.abr(self, bitrates, sizes)
+
+        # pensieve
+        if len(self.data["DELAY"]) == 0:  
+            last_deley = 0
+            last_bytes = 0
+        else:
+            last_deley = self.data["DELAY"][-1]
+            last_bytes = self.data["BYTES"][-1]
+        quality_level = self.pensieve_agent.select_action(self.buffer_size, last_deley, last_bytes, sizes)
+
         
+
         # debug
         try:
             # Debug: Print the current state of sizes and quality_level
@@ -320,6 +349,7 @@ class Environment:
 
         ###################################################################
         # Record the simulation data
+        self.data["BITRATE_LIST"].append(bitrates)
         self.data["REWARD"].append(reward)
         self.data["BUFFER_STATE"].append(self.buffer_size)
         self.data["QUALITY_INDEX"].append(quality_level)
