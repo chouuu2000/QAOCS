@@ -84,6 +84,7 @@ def test(args):
 
         if os.path.exists(checkpoint_path):
             ppo_agent.load(checkpoint_path)
+            print('checkpoint path:', checkpoint_path)
         # checkpoint = torch.load(checkpoint_path)
         # ppo_agent.policy.load_state_dict(checkpoint)
 

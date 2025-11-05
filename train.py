@@ -31,7 +31,9 @@ def train():
     ## Note : print/log frequencies should be > than max_ep_len
 
     ################ PPO hyperparameters ################
-    update_timestep = 200*4  # update policy every n timesteps
+    #update_timestep = 200*4  # update policy every n timesteps
+
+    update_timestep = 200  # update policy every n timesteps
     K_epochs = 80  # update policy for K epochs in one PPO update
 
     eps_clip = 0.2  # clip parameter for PPO
@@ -88,7 +90,7 @@ def train():
 
 
     ################### checkpointing ###################
-    run_num_pretrained = 2  #### change this to prevent overwriting weights in same env_name folder
+    run_num_pretrained = 725  #### change this to prevent overwriting weights in same env_name folder
 
     directory = "PPO_preTrained"
     if not os.path.exists(directory):
@@ -159,6 +161,20 @@ def train():
     log_f = open(log_f_name, "w+")
     log_f.write('episode,timestep,reward\n')
 
+    # additional metrics file
+    metrics_csv_path = log_dir + '/PPO_' + env_name + "_metrics_" + str(run_num) + ".csv"
+    metrics_f = open(metrics_csv_path, "w+")
+    metrics_f.write("episode,total_reward,duration_sec,steps,avg_reward_per_step,avg_reward_per_sec\n")
+
+    # new: record timestep reward to separate file
+    timestep_reward_csv_path = log_dir + '/PPO_' + env_name + "_timestep_reward_" + str(run_num) + ".csv"
+    timestep_f = open(timestep_reward_csv_path, "w+")
+    timestep_f.write("episode,timestep,reward\n")
+
+    loss_csv_path = os.path.join(log_dir, f'PPO_{env_name}_losses_{run_num}.csv')
+    loss_f = open(loss_csv_path, "w+")
+    loss_f.write("timestep,total_loss,policy_loss,value_loss,entropy_loss\n")
+
     # printing and logging variables
     print_running_reward = 1
     print_running_episodes = 0
@@ -172,11 +188,18 @@ def train():
     num_episodes_without_improvement = 0
     max_episodes_without_improvement = 50
     # training loop
-    while time_step <= max_training_timesteps:
-
+    #while time_step <= max_training_timesteps:
+    max_episode_count = 3000
+    while i_episode < max_episode_count:
         state = env.reset()
         state = state.flatten()
         current_ep_reward = 0
+
+        # --- collect all losses this episode ---
+        ep_policy_losses = []
+        ep_value_losses = []
+        ep_entropy_losses = []
+        ep_total_losses = []
 
         ep_start = time.time()
         for t in range(1, max_ep_len + 1):
@@ -193,6 +216,8 @@ def train():
             ppo_agent.buffer.is_terminals.append(done)
 
             writer.add_scalar('Timestep Reward', reward, time_step)
+            timestep_f.write(f"{i_episode},{t},{reward:.4f}\n")
+            timestep_f.flush()
 
             time_step += 1
             current_ep_reward += reward
@@ -208,8 +233,12 @@ def train():
                 # writer.add_scalar('Loss/Entropy_loss', entropy_loss.mean().item(), time_step)
                 writer.add_scalars('Loss',   {'Total loss':loss.mean().item(),'policy_loss': policy_loss.mean().item(), \
                                             'value_loss': value_loss.mean().item(), 'entropy_loss': entropy_loss.mean().item()}, time_step)
-                                            
-
+                ep_policy_losses.append(policy_loss.mean().item())
+                ep_value_losses.append(value_loss.mean().item())
+                ep_entropy_losses.append(entropy_loss.mean().item())
+                ep_total_losses.append(loss.mean().item())
+                loss_f.write(f"{time_step},{loss.mean().item():.4f},{policy_loss.mean().item():.4f},{value_loss.mean().item():.4f},{entropy_loss.mean().item():.4f}\n")
+                loss_f.flush()
 
             # if continuous action space; then decay action std of ouput action distribution
             if has_continuous_action_space and time_step % action_std_decay_freq == 0:
@@ -271,9 +300,21 @@ def train():
         log_running_reward += current_ep_reward
         log_running_episodes += 1
 
+        # write to metrics CSV
+        
+        ep_duration = ep_end - ep_start
+        avg_reward_per_step = current_ep_reward / t if t > 0 else 0
+        avg_reward_per_sec = current_ep_reward / ep_duration if ep_duration > 0 else 0
+
+        metrics_f.write(f"{i_episode},{current_ep_reward:.4f},"
+                f"{ep_duration:.2f},{t},{avg_reward_per_step:.4f},{avg_reward_per_sec:.4f}\n")
+        metrics_f.flush()
         i_episode += 1
 
     log_f.close()
+    metrics_f.close()
+    timestep_f.close()
+    loss_f.close()
     env.close()
     writer.close()
     # print total training time

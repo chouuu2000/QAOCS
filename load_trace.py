@@ -1,10 +1,12 @@
 import os
-
+import json
 
 COOKED_TRACE_FOLDER = './train/'
 
 
-def load_trace(cooked_trace_folder=COOKED_TRACE_FOLDER):
+def load_trace(cooked_trace_folder=COOKED_TRACE_FOLDER, order_json_path="./trace_order.json"):
+    # with open(order_json_path, 'r') as f:
+    #     cooked_files = json.load(f)
     cooked_files = os.listdir(cooked_trace_folder)
     all_cooked_time = []
     all_cooked_bw = []

@@ -7,10 +7,10 @@ video_list = [
     #"bigbuckbunny360p24",
     #"Tears_of_Steel_360p24",
     "LOL_3D",
-    "sport_highlight",
+    #"sport_highlight",
     #"underwater",
     #"sport_long_take",
-    "video_game"
+    #"video_game"
 ]
 
 # 主程序

@@ -1,8 +1,8 @@
 import numpy as np
 import os
 from ffmpeg_quality_metrics import FfmpegQualityMetrics, VmafOptions
-#import abr as ABR
-import rba as RBA
+import abr as ABR
+#import rba as RBA
 import pandas as pd
 # For video features
 import cv2
@@ -12,10 +12,13 @@ import matplotlib.pyplot as plt
 import PIL.Image as Image
 import time
 import multiprocessing
-import bola as Bola
-import mpc1 as Mpc
-import pensieve as pensieve
+#import bola as Bola
+#import mpc1 as Mpc
+#import pensieve as pensieve
+#import bola_og as Bola
 #import pensieve_ppo as pensieve_ppo
+#import rmpc as RMPC
+
 S_INFO = 15
 S_LEN = 10  # take how many frames in the past
 A_DIM = 2
@@ -26,7 +29,7 @@ B_IN_MB = 1000000.0
 BITS_IN_BYTE = 8.0
 RANDOM_SEED = 42
 CRF_LEVELS = 51
-BUFFER_THRESH = 60.0 * MILLISECONDS_IN_SECOND  # millisec, max buffer limit
+BUFFER_THRESH = 30.0 * MILLISECONDS_IN_SECOND  # millisec, max buffer limit
 DRAIN_BUFFER_SLEEP_TIME = 500.0  # millisec
 PACKET_PAYLOAD_PORTION = 0.95
 LINK_RTT = 80  # millisec
@@ -36,7 +39,9 @@ NOISE_HIGH = 1.1
 #VMAF_HDTV_HEIGHT = '1080' VMAF_HDTV_WIDTH = '1920'
 VMAF_HDTV_MODEL = './vmaf/model/vmaf_float_v0.6.1.pkl'
 
-
+# --- pq policy thresholds (milliseconds) ---
+#P_LOW  = 50.0 * MILLISECONDS_IN_SECOND   # 例：20s
+#Q_HIGH = 60.0 * MILLISECONDS_IN_SECOND   # 例：40s
 
 RESOLUTION_LIST = [(640, 360), (854, 480), (1280, 720), (1920, 1080)]
 
@@ -78,12 +83,28 @@ class Environment:
         self.B_list = []
         self.CRF = []
 
+        # for pq-policy test
+        #self.p = P_LOW
+        #self.q = Q_HIGH
         
+        # for D-policy test
+        #self.d_target_ms = 15000
+        #self.in_d_mode = False
+
+        # for N-policy test
+        # self.n_target_segments = 7      # 你要等的片段數（自行調）
+        # self.in_n_mode = False          # 是否處於N補滿模式
+        # self.buffer_segments = []       # 尚未播放的segments時長(ms)，用來精準數片段
+
+
         # pick a random trace file
-        self.trace_idx = np.random.randint(len(self.all_cooked_time)) # random select a trace file
+        #self.trace_idx = np.random.randint(len(self.all_cooked_time)) # random select a trace file
+        self.trace_idx = 0
         self.cooked_time = self.all_cooked_time[self.trace_idx]  # Time
         self.cooked_bw = self.all_cooked_bw[self.trace_idx]  # Bandwidth
         self.cooked_file_names = all_trace_file_names[self.trace_idx]  # Trace file name
+
+        print(f"Using trace #{self.trace_idx}: {self.cooked_file_names}")
 
         # randomize the start point of the trace
         # note: trace file starts with time 0
@@ -112,7 +133,33 @@ class Environment:
         }
 
         # pensieve agent
-        self.pensieve_agent = pensieve.Pensieve(self)
+        #self.pensieve_agent = pensieve.Pensieve(self)
+        
+        #rmpc
+        #self.rmpc = RMPC.MPC()
+
+    # for N-policy
+    def _consume_playback(self, t_ms: float):
+        """
+        從 buffer_segments 頭部消耗 t_ms 的播放時間。
+        會把播完的 segment pop 掉；若只播掉一部分，就減少那個頭segment的剩餘時間。
+        """
+        remain = t_ms
+        while remain > 1e-9 and self.buffer_segments:
+            head = self.buffer_segments[0]
+            if remain >= head:
+                remain -= head
+                self.buffer_segments.pop(0)
+            else:
+                self.buffer_segments[0] = head - remain
+                remain = 0.0
+        # 同步 buffer_size（ms）
+        self.buffer_size = sum(self.buffer_segments)
+
+    def _append_segment(self, B_ms: float):
+        """把下載完成的這個 segment（時長 B_ms）加入待播佇列，並同步 buffer_size。"""
+        self.buffer_segments.append(B_ms)
+        self.buffer_size = sum(self.buffer_segments)
 
     def reset(self):
             # reset the environment
@@ -125,15 +172,22 @@ class Environment:
             self.B_list = []
             self.CRF = []
 
+            # --- N-policy reset ---
+            self.in_n_mode = False
+            self.buffer_segments = []
+
             # pick a random trace file
-            self.trace_idx = np.random.randint(len(self.all_cooked_time))
+            #self.trace_idx = np.random.randint(len(self.all_cooked_time))
+            self.trace_idx = (self.trace_idx + 1) % len(self.all_cooked_time)
             self.cooked_time = self.all_cooked_time[self.trace_idx]
             self.cooked_bw = self.all_cooked_bw[self.trace_idx]
             self.cooked_file_names = self.all_trace_file_names[self.trace_idx]
+            print(f"[Reset] Using trace #{self.trace_idx}: {self.cooked_file_names}")
 
             # randomize the start point of the video
             # note: trace file starts with time 0
-            self.mahimahi_ptr = np.random.randint(1, len(self.cooked_bw))
+            #self.mahimahi_ptr = np.random.randint(1, len(self.cooked_bw))
+            self.mahimahi_ptr = 1
             self.last_mahimahi_time = self.cooked_time[self.mahimahi_ptr - 1]
             # reset the data for the next video
             self.data = {
@@ -187,8 +241,8 @@ class Environment:
         exe_time = end_time_ - start_time_
         print(f'Video multi-res processing execuation time: {exe_time:.2f}s')
         # ABR to select which resoltion and corresponding video size
-        # abr = ABR.Abr()
-        # quality_level = abr.abr(self, bitrates)
+        abr = ABR.Abr()
+        quality_level = abr.abr(self, bitrates)
         
         # rate based abr
         #rba = RBA.RateBasedABR(bitrates)
@@ -206,33 +260,39 @@ class Environment:
         #quality_level = mpc.abr(self, bitrates, sizes)
 
         # pensieve
-        if len(self.data["DELAY"]) == 0:  
-            last_deley = 0
-            last_bytes = 0
-        else:
-            last_deley = self.data["DELAY"][-1]
-            last_bytes = self.data["BYTES"][-1]
-        quality_level = self.pensieve_agent.select_action(self.buffer_size, last_deley, last_bytes, sizes)
+        # if len(self.data["DELAY"]) == 0:  
+        #     last_deley = 0
+        #     last_bytes = 0
+        # else:
+        #     last_deley = self.data["DELAY"][-1]
+        #     last_bytes = self.data["BYTES"][-1]
+        # quality_level = self.pensieve_agent.select_action(self.buffer_size, last_deley, last_bytes, sizes)
 
+        #bola og
+        # bola = Bola.Bola(self, bitrates, B, sizes)
+        # buffer_sec = self.data["BUFFER_STATE"][-1] if self.data["BUFFER_STATE"] else 0
+        # quality_level = bola.abr(buffer_sec)
         
+        # rmpc
+        #quality_level = self.rmpc.abr(self, bitrates, sizes, B)
 
         # debug
-        try:
-            # Debug: Print the current state of sizes and quality_level
-            print(f"DEBUG: sizes array length = {len(sizes)}, selected quality_level = {quality_level}")
-            print(f"DEBUG: sizes array content = {sizes}")
-            print(f"DEBUG: bitrates array length = {len(bitrates)}")
-            print(f"DEBUG: bitrates array content = {bitrates}")
+        # try:
+        #     # Debug: Print the current state of sizes and quality_level
+        print(f"DEBUG: selected quality_level = {quality_level}")
+        #     print(f"DEBUG: sizes array content = {sizes}")
+        #     print(f"DEBUG: bitrates array length = {len(bitrates)}")
+        #     print(f"DEBUG: bitrates array content = {bitrates}")
 
-            # 取得對應解析度的 chunk 大小
-            b = sizes[quality_level]
-        except IndexError as e:
-            print("ERROR: Index out of range in get_video_chunk!")
-            print(f"DEBUG: sizes array length = {len(sizes)}, but selected quality_level = {quality_level}")
-            print(f"DEBUG: bitrates array length = {len(bitrates)}")
-            print(f"DEBUG: bitrates array content = {bitrates}")
-            print(f"DEBUG: sizes array content = {sizes}")
-            raise e  # 讓錯誤繼續拋出，方便追蹤
+        #     # 取得對應解析度的 chunk 大小
+        b = sizes[quality_level]
+        # except IndexError as e:
+        #     print("ERROR: Index out of range in get_video_chunk!")
+        #     print(f"DEBUG: sizes array length = {len(sizes)}, but selected quality_level = {quality_level}")
+        #     print(f"DEBUG: bitrates array length = {len(bitrates)}")
+        #     print(f"DEBUG: bitrates array content = {bitrates}")
+        #     print(f"DEBUG: sizes array content = {sizes}")
+        #     raise e  # 讓錯誤繼續拋出，方便追蹤
         
         video_rescale_quality = rescaled_videos[quality_level]
         self.video_size.append(b)
@@ -286,6 +346,9 @@ class Environment:
         # add in the new chunk
         self.buffer_size += B
         
+
+
+
         # sleep if buffer gets too large
         sleep_time = 0
         if self.buffer_size > BUFFER_THRESH:
@@ -313,6 +376,81 @@ class Environment:
                     self.mahimahi_ptr = 1
                     self.last_mahimahi_time = 0
 
+        # --- pq policy: if buffer exceeds q, pause new requests until it drains to p ---
+        # sleep_time = 0
+        # if self.buffer_size > self.q:
+        #     # 想像：此時已完成當前 segment 的下載（因此才會超過 q）
+        #     # 根據 pq policy，不再發新請求，直到 buffer 掉回 p
+        #     drain_to_p = self.buffer_size - self.p
+        #     # 用固定步長把 "睡眠時間" 對齊（跟原本寫法一致）
+        #     sleep_time = np.ceil(drain_to_p / DRAIN_BUFFER_SLEEP_TIME) * DRAIN_BUFFER_SLEEP_TIME
+
+        #     # 播放持續進行 → buffer 在「暫停下載」期間只會下降
+        #     self.buffer_size -= sleep_time
+        #     if self.buffer_size < 0:
+        #         self.buffer_size = 0  # 保險（理論上不會<0，因為只從 >q 扣到 p）
+
+        #     # 讓 mahimahi 時間軸前進（代表我們丟掉了這段可用頻寬）
+        #     while True:
+        #         duration = self.cooked_time[self.mahimahi_ptr] - self.last_mahimahi_time
+        #         # 若當前 duration 就足以覆蓋 sleep_time，就在這段內停住
+        #         if duration > sleep_time / MILLISECONDS_IN_SECOND:
+        #             self.last_mahimahi_time += sleep_time / MILLISECONDS_IN_SECOND
+        #             break
+        #         # 否則扣掉整段，往下一個 trace 片段走
+        #         sleep_time -= duration * MILLISECONDS_IN_SECOND
+        #         self.last_mahimahi_time = self.cooked_time[self.mahimahi_ptr]
+        #         self.mahimahi_ptr += 1
+
+        #         if self.mahimahi_ptr >= len(self.cooked_bw):
+        #             # loop back in the beginning
+        #             self.mahimahi_ptr = 1
+        #             self.last_mahimahi_time = 0
+
+        # D-policy
+        # if not self.in_d_mode:
+        #     # 一般播放：先吃掉延遲時間
+        #     rebuf = max(delay - self.buffer_size, 0.0)
+        #     self.buffer_size = max(self.buffer_size - delay, 0.0)
+        #     if rebuf > 0:                 # 第一次掉到 <0：觸發D-policy補滿模式
+        #         self.in_d_mode = True
+        # else:
+        #     # 補滿模式：播放暫停 → 整段 delay 都算 rebuffer，且 buffer 不隨時間消耗
+        #     rebuf = delay
+        #     # 不扣 buffer（因為畫面停住）
+        #     # self.buffer_size 於此不變
+
+        # # 無論是否在補滿模式，當前chunk下載完成後都把 B 加進 buffer
+        # self.buffer_size += B
+
+        # # 補滿達標就恢復一般播放（stall 定義切回 buffer < 0）
+        # if self.in_d_mode and self.buffer_size >= self.d_target_ms:
+        #     self.in_d_mode = False
+
+        # 紀錄這一步是否處於stall（含補滿模式）
+        #self.stall_mask.append(1 if (rebuf > 0 or self.in_d_mode) else 0)
+
+        # if not self.in_n_mode:
+        #     # 一般播放：下載延遲 delay 期間，播放端會持續消耗 buffer
+        #     if self.buffer_size > 0:
+        #         played = min(delay, self.buffer_size)
+        #         self._consume_playback(played)
+        #         rebuf = max(delay - played, 0.0)
+        #     else:
+        #         rebuf = delay
+        #         # 第一次 stall → 進入 N 補滿模式
+        #         self.in_n_mode = True
+        # else:
+        #     # N 補滿模式：暫停播放 → 整段 delay 都算 rebuffer，且不消耗 buffer
+        #     rebuf = delay
+
+        # # 無論是否在補滿模式，當前 chunk 下載完成後都把 B 加進 buffer（當作一個新 segment）
+        # self._append_segment(B)
+
+        # # 達到 N 個 segment（數量）就退出補滿模式（恢復邊播邊載）
+        # if self.in_n_mode and len(self.buffer_segments) >= self.n_target_segments:
+        #     self.in_n_mode = False
+        
 
         buffer_levels = self.calculate_buffer_levels()
         pst = self.calculate_stall_probability(buffer_levels)
@@ -394,7 +532,7 @@ class Environment:
             csv_file_save_path = 'Videos_result/' + self.video.video_name().split('.mp4')[0] \
                 + 'eposide_'+str(self.eposide) +'simulation.csv'
             if self.test:
-                vdir = 'Test_result/'+self.video.video_name().split('.mp4')[0]
+                vdir = './pq_test/single/30/'+self.video.video_name().split('.mp4')[0]
                 pmkdir(vdir)
                 # csv_file_save_path = 'Test_result/' + self.video.video_name().split('.mp4')[0] \
                 # + self.cooked_file_names.replace('.txt','.csv')
@@ -403,6 +541,9 @@ class Environment:
             data_frame = pd.DataFrame(self.data)
             data_frame.to_csv(csv_file_save_path, index=False)
             self.reset()
+
+            # reset history
+            #self.rmpc.reset()
 
         return delay, sleep_time, return_buffer_size / MILLISECONDS_IN_SECOND, \
                rebuf / MILLISECONDS_IN_SECOND, video_chunk_size, end_of_video, pst, vmaf, last_vmaf, reward

@@ -34,7 +34,7 @@ class ABREnv():
 
         #video_path = 'bigbuckbunny360p24.mp4' if video_path is None else video_path
         #video_path = 'bigbuckbunny1080p30.mp4' 
-        video_path = 'Video_source/Tears_of_Steel_360p24.mp4' if video_path is None else video_path
+        video_path = 'Video_source/LOL_3D.mp4' if video_path is None else video_path
         np.random.seed(random_seed)
         if test:
             all_cooked_time, all_cooked_bw,all_trace_file_names = load_trace.load_trace(trace_folder)
@@ -133,7 +133,7 @@ class ABREnv():
         #print('edge shape:', edge.shape)
         #print('edge shape:', edge.reshape(-1, S_LEN).shape)
         self.state[14, :] = edge
-        print(f'Each state component value: Delay{self.state[0, -1]:.2f}s, Buffer size: {self.state[1, -1]:.2f}, Throughput: {Throughput/1000:.2f}Kbps, B: {self.state[3, -1]:.2f}s, CRF: {self.state[4, -1]:.2f}, SI: {self.state[5, -1]:.2f}, TI: {self.state[6, -1]:.2f}')
+        print(f'Each state component value: Delay{self.state[0, -1]:.2f}s, Buffer size: {self.state[1, -1]:.2f}, Throughput: {Throughput/1000:.2f}Mbps, B: {self.state[3, -1]:.2f}s, CRF: {self.state[4, -1]:.2f}, SI: {self.state[5, -1]:.2f}, TI: {self.state[6, -1]:.2f}')
         print(f'GLACM: Contrast: {self.state[7, -1]:.2f}, Dissimilarity: {self.state[8, -1]:.2f}, Homogeneity: {self.state[9, -1]:.2f}, Energy: {self.state[10, -1]:.2f}, Correlation: {self.state[11, -1]:.2f}, ASM: {self.state[12, -1]:.2f}')
         print(f'Nework_condition {self.state[13, -1]:.2f}, Edge: {self.state[14, -1]:.2f}')
         # Flatten the state array before returning it
